@@ -1,0 +1,6 @@
+[submodule "cglm"]
+	path = cglm
+	url = https://github.com/recp/cglm
+[submodule "zglfw"]
+	path = zglfw
+	url = https://github.com/Iridescence-Technologies/zglfw
