@@ -4,3 +4,6 @@
 [submodule "zglfw"]
 	path = zglfw
 	url = https://github.com/Iridescence-Technologies/zglfw
+[submodule "glfw"]
+	path = glfw
+	url = https://github.com/glfw/glfw
