@@ -10,6 +10,8 @@ const std = @import("std");
 // TODO: apparently there's no reason to bother using the old fallbacks though, so unless it shows up in a bug report or something it's probably fine.
 
 // A list of all official Vulkan extensions can be found at https://registry.khronos.org/vulkan/
+
+// The A comprehensive set of extensions that the application might need. Some will be unused.
 pub const possibleRequiredExtensions = Extensions.initPossibleRequired();
 
 // use that list to build the wrappers
@@ -71,12 +73,15 @@ pub const Extensions = struct {
     VK_EXT_metal_surface: bool = false,
     VK_MVK_macos_surface: bool = false, //NOTE: this is deprecated, check GLFW for its removal. As of GLFW 3.3.8, it is still present.
 
-    pub fn initPossibleRequired() Extensions {
+    pub fn initBaseRequired() Extensions {
         var res = Extensions{
-            .VK_EXT_debug_utils = builtin.mode == std.builtin.Mode.Debug,
             .VK_KHR_surface = true,
             .VK_KHR_swapchain = true,
         };
+        return res;
+    }
+    pub fn initPossibleRequired() Extensions {
+        var res = initBaseRequired();
         switch (builtin.target.os.tag) {
             .linux => {
                 res.VK_KHR_xcb_surface = true;
@@ -97,10 +102,32 @@ pub const Extensions = struct {
         return res;
     }
 
-    pub fn enumerateExtensions(self: Extensions, output: ?[*][]const u8, outputNum: *usize) void{
+    /// Requires GLFW to be properly initialized
+    pub fn initActualRequired() Extensions {
+        const glfwExtensions = blk: {
+            var num: u32 = undefined;
+            const ptr = glfw.getRequiredInstanceExtensions(&num);
+            var v: []const u8 = undefined;
+            v.ptr = ptr.?;
+            v.len = num;
+            break :blk v;
+        };
+        var res = initBaseRequired();
+        // Zig comptime ftw
+        inline for(@typeInfo(This).Struct.fields) |field| {
+            //IMPORTANT: This only works because the field name is EXACTLY identical to the extension name
+            const fieldName = field.name;
+            for(glfwExtensions) |extension| {
+                if(std.mem.eql(u8, extension, fieldName)) {
+                    @field(res, fieldName) = true;
+                }
+            }
+        }
+    }
+    pub fn enumerateRaw(this: Extensions, output: ?[*][*:0]const u8, outputNum: *usize) void{
         outputNum.* = 0;
         inline for(@typeInfo(This).Struct.fields) |field| {
-            const extensionEnabled = @field(self, field.name);
+            const extensionEnabled = @field(this, field.name);
             if(field.type != bool)continue;
             if(extensionEnabled) {
                 //IMPORTANT: This only works because the field name is EXACTLY identical to the extension name
@@ -108,6 +135,13 @@ pub const Extensions = struct {
                 outputNum.*+=1;
             }
         }
+    }
+    pub fn enumerate (this: Extensions, allocator: std.mem.Allocator) []const [*:0]const u8 {
+        var num: usize = undefined;
+        this.enumerateRaw(null, &num);
+        var res = allocator.alloc([*:0]const u8, num);
+        this.enumerateRaw(res.ptr, &num);
+        return res;
     }
 };
 
